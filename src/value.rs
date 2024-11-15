@@ -10,7 +10,7 @@ use std::{env, fmt};
 /// - `ABC_DEF=123` => `Node("", { "DEF": Node("123", {}) })`
 /// - `ABC=123,ABC_DEF=456` => `Node("123", { "DEF": Node("456", {}) })`
 #[derive(PartialEq, Clone)]
-pub(crate) struct Node(String, BTreeMap<String, Node>);
+pub(crate) struct Node(String, BTreeMap<String, Node>, String);
 
 impl Debug for Node {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -31,7 +31,12 @@ impl Debug for Node {
 impl Node {
     /// Create a new node without children
     pub(crate) fn new(v: impl Into<String>) -> Self {
-        Node(v.into(), BTreeMap::new())
+        Node(v.into(), BTreeMap::new(), "_".to_owned())
+    }
+
+    /// Create a new node without children
+    pub(crate) fn new_with_options(v: impl Into<String>, delim: String) -> Self {
+        Node(v.into(), BTreeMap::new(), delim)
     }
 
     /// Get value from node.
@@ -78,7 +83,7 @@ impl Node {
     ///
     /// `node.get("abc_def")` => `node.get("abc").get("def")`
     pub(crate) fn get(&self, k: &str) -> Option<&Node> {
-        match k.split_once('_') {
+        match k.split_once(&self.2) {
             None => self.1.get(k),
             Some((k, remain)) => match self.1.get(k) {
                 None => None,
@@ -91,7 +96,7 @@ impl Node {
     ///
     /// `node.push("abc_def", v)` => `node.push("abc", "").push("def", v)`
     fn push(&mut self, k: &str, v: &str) {
-        match k.split_once('_') {
+        match k.split_once(&self.2) {
             None => {
                 self.1
                     .entry(k.to_string())
@@ -157,6 +162,32 @@ impl Node {
         root
     }
 
+    /// Construct full tree from an iterator with options.
+    pub(crate) fn from_iter_with_options<Iter, S>(iter: Iter, prefix: Option<&str>, delim: &str) -> Self
+    where
+        S: AsRef<str>,
+        Iter: IntoIterator<Item = (S, S)>,
+    {
+        let prefix = prefix.map_or_else(|| "".to_string(), | some| format!("{}_", some));
+        let mut root = Node::new_with_options(String::default(), delim.to_owned());
+
+        let vars = iter.into_iter().filter_map(|(k, v)| {
+            if v.as_ref().is_empty() {
+                None
+            } else {
+                k.as_ref()
+                    .strip_prefix(&prefix)
+                    .map(|k| (k.to_lowercase(), v))
+            }
+        });
+
+        for (k, v) in vars {
+            root.push(&k, v.as_ref())
+        }
+
+        root
+    }
+
     /// Construct full tree from env.
     pub(crate) fn from_env() -> Self {
         Node::from_iter(env::vars())
@@ -165,6 +196,11 @@ impl Node {
     /// Construct full tree from env with prefix.
     pub(crate) fn from_env_with_prefix(prefix: &str) -> Self {
         Node::from_iter_with_prefix(env::vars(), prefix)
+    }
+
+    /// Construct full tree from env with prefix.
+    pub(crate) fn from_env_with_options(prefix: Option<&str>, delim: &str) -> Self {
+        Node::from_iter_with_options(env::vars(), prefix, delim)
     }
 }
 
@@ -190,7 +226,8 @@ mod tests {
                 BTreeMap::from([
                     ("d".to_string(), Node::new("Hello, World!")),
                     ("e".to_string(), Node::new("Hello, Mars!"))
-                ])
+                ]),
+                "_".to_owned()
             ))
         );
     }
@@ -224,16 +261,20 @@ mod tests {
                                             BTreeMap::from([
                                                 ("d".to_string(), Node::new("Hello, World!")),
                                                 ("e".to_string(), Node::new("Hello, Mars!"))
-                                            ])
+                                            ]),
+                                            "_".to_owned()
                                         )
                                     ),
                                     ("f".to_string(), Node::new("Hello, Moon!"))
-                                ])
+                                ]),
+                                "_".to_owned()
                             )
-                        )])
+                        )]),
+                        "_".to_owned()
                     )
-                )])
-            )
+                )]),
+                "_".to_owned()
+            ),
         )
     }
 

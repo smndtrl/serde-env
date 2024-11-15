@@ -36,5 +36,5 @@ mod de;
 mod error;
 mod value;
 
-pub use de::{from_env, from_env_with_prefix, from_iter, from_iter_with_prefix};
+pub use de::{from_env, from_env_with_prefix, from_env_with_options, from_iter, from_iter_with_prefix, from_iter_with_options};
 pub use error::Error;

@@ -69,6 +69,42 @@ where
     T::deserialize(Deserializer(Node::from_env_with_prefix(prefix)))
 }
 
+/// Deserialize into struct via env with a prefix.
+///
+/// # Examples
+///
+/// ```
+/// use serde::Deserialize;
+/// use serde_env::from_env_with_prefix;
+///
+/// #[derive(Debug, Deserialize, PartialEq)]
+/// struct Test {
+///     home: String,
+///     path: String,
+/// }
+/// temp_env::with_vars(
+///     [
+///         ("TEST_ENV_HOME", Some("/test")),
+///         ("TEST_ENV_PATH", Some("foo:bar")),
+///     ],
+///     || {
+///         let t: Test = from_env_with_prefix("TEST_ENV").expect("deserialize from env");
+///
+///         let result = Test {
+///             home: "/test".to_string(),
+///             path: "foo:bar".to_string(),
+///         };
+///         assert_eq!(t, result);
+///     },
+/// );
+/// ```
+pub fn from_env_with_options<T>(prefix: Option<&str>, delim: &str) -> Result<T, Error>
+where
+    T: de::DeserializeOwned,
+{
+    T::deserialize(Deserializer(Node::from_env_with_options(prefix, delim)))
+}
+
 /// Deserialize into struct via an iterable of `(AsRef<str>, AsRef<str>)`
 /// representing keys and values.
 ///
@@ -141,6 +177,43 @@ where
     T: de::DeserializeOwned,
 {
     T::deserialize(Deserializer(Node::from_iter_with_prefix(iter, prefix)))
+}
+
+/// Deserialize into struct via an iterable of `(AsRef<str>, AsRef<str>)`
+/// representing keys and values, with a prefix.
+///
+/// # Examples
+///
+/// ```
+/// use serde::Deserialize;
+/// use serde_env::from_iter_with_prefix;
+///
+/// #[derive(Debug, Deserialize, PartialEq)]
+/// struct Test {
+///     home: String,
+///     path: String,
+/// }
+/// let vars = ([
+///     ("TEST_ENV_HOME", "/test"),
+///     ("TEST_ENV_PATH", "foo:bar"),
+/// ]);
+///
+/// let actual: Test = from_iter_with_prefix(vars, "TEST_ENV").expect("deserialize from iter");
+///
+/// let expected = Test {
+///     home: "/test".to_string(),
+///     path: "foo:bar".to_string(),
+/// };
+///
+/// assert_eq!(actual, expected);
+/// ```
+pub fn from_iter_with_options<Iter, S, T>(iter: Iter, prefix: Option<&str>, delim: &str) -> Result<T, Error>
+where
+    Iter: IntoIterator<Item = (S, S)>,
+    S: AsRef<str>,
+    T: de::DeserializeOwned,
+{
+    T::deserialize(Deserializer(Node::from_iter_with_options(iter, prefix, delim)))
 }
 
 struct Deserializer(Node);
@@ -643,6 +716,62 @@ mod tests {
             },
         )
     }
+
+    #[test]
+    fn test_from_env_with_options() {
+        temp_env::with_vars(
+            vec![
+                ("A", Some("123")),
+                ("B", Some("true")),
+                ("C", Some("Hello, test")),
+                ("D\\\\AA", Some("1.2")),
+                ("D\\\\BB", Some("Hello, embed")),
+            ],
+            || {
+                let t: TestStruct = from_env_with_options(None, "\\\\").expect("must success");
+                assert_eq!(
+                    t,
+                    TestStruct {
+                        a: 123,
+                        b: true,
+                        c: "Hello, test".to_string(),
+                        d: EmbedStruct {
+                            aa: 1.2,
+                            bb: "Hello, embed".to_string()
+                        }
+                    }
+                )
+            },
+        );
+
+        temp_env::with_vars(
+            vec![
+                ("OPT_A", Some("123")),
+                ("OPT_B", Some("true")),
+                ("OPT_C", Some("Hello, test")),
+                ("OPT_D\\\\AA", Some("1.2")),
+                ("OPT_D\\\\BB", Some("Hello, embed")),
+            ],
+            || {
+                let t: TestStruct = from_env_with_options(Some("OPT"), "\\\\").expect("must success");
+                assert_eq!(
+                    t,
+                    TestStruct {
+                        a: 123,
+                        b: true,
+                        c: "Hello, test".to_string(),
+                        d: EmbedStruct {
+                            aa: 1.2,
+                            bb: "Hello, embed".to_string()
+                        }
+                    }
+                )
+            },
+        )
+
+
+    }
+
 
     /// This test is ported from [softprops/envy](https://github.com/softprops/envy/blob/801d81e7c3e443470e110bf4e34460acba113476/src/lib.rs#L410)
     #[derive(Deserialize, Debug, PartialEq, Eq)]
