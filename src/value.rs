@@ -100,12 +100,12 @@ impl Node {
             None => {
                 self.1
                     .entry(k.to_string())
-                    .or_insert_with(|| Node::new(String::default()))
+                    .or_insert_with(|| Node::new_with_options(String::default(), self.2.clone()))
                     .0 = v.to_string();
             }
             Some((k, remain)) => match self.1.get_mut(k) {
                 None => {
-                    let mut node = Self::new(String::default());
+                    let mut node = Self::new_with_options(String::default(), self.2.clone());
                     node.push(remain, v);
                     self.1.insert(k.to_string(), node);
                 }
